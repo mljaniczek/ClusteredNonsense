@@ -67,7 +67,7 @@ load("pancan_nsmsig_oncodrive.RData") #For nsm.sig - the result of OncodriveClus
 
 #loading data for clustering data with backgrond mutation calculated using synonymous mutations
 load("pancan_nsm_readmaf.RData")
-load("pancan_nsmsig_oncodrive.RData")
+load("pancan_nsm_silentsig_oncodrive.RData")
 
 #Plot result of oncodrive using FDR = 0.05,
 plotOncodrive(res = nsm.sig, fdrCutOff = 0.05, useFraction = FALSE)
