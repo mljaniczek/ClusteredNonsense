@@ -32,8 +32,10 @@ tp_p <- fisher.test(nsmSynTabtpPos)
 #Getting smaller subset of columns of data so loop can go faster
 features = c("Hugo_Symbol", "CDS_length", "CDS_pos", "Variant_Classification", "Within_50bp")
 nsmselect <- select(NSM_syn_onco, features)
+#Subsetting just genes that have both nonsense and silent mutations
 nsmselect <- subset(nsmselect, nsmselect$Hugo_Symbol %in% syn_onco$Hugo_Symbol)
 nsmselect <- subset(nsmselect, nsmselect$Hugo_Symbol %in% NSM_onco$Hugo_Symbol)
+#Create new vector of the unique remaining genenames
 genename <-c(unique(nsmselect$Hugo_Symbol)) #16411 common genes between Nonsense and silent
 
 #Fisher exact test on nonsense vs silent mutations on first half vs second half
@@ -59,10 +61,20 @@ end.time - start.time
 #Adjust p-value using Benjamini-Hochberg FDR correction 
 p_bh <- data.frame(p.adjust(p, method = "BH")) #where p is vector of p-values
 p_bh$gene <- hugo
+#Now make subset of p-val under FDR cutoff of 0.1
 p_bh_fdr1 <- subset(p_bh, p_bh$p.adjust.p..method....BH.. <= 0.1)
 
 save(p_bh, file = "fdr_fisher_50percent_tot.RData")
 save(p_bh_fdr1, file = "fdr_fisher_50percent_select1.RData")
+
+#Results after running on 60/40 ratio
+p_bh60 <- data.frame(p.adjust(p, method = "BH")) #where p is vector of p-values
+p_bh60$gene <- hugo
+#Now make subset of p-val under FDR cutoff of 0.1
+p_bh60_fdr1 <- subset(p_bh60, p_bh60$p.adjust.p..method....BH.. <= 0.1)
+
+save(p_bh60, file = "fdr_fisher_60percent_tot.RData")
+save(p_bh60_fdr1, file = "fdr_fisher_60percent_select1.RData")
 
 
 #Loop for last 50 bp (TIME CONSUMING!!!)
@@ -91,7 +103,7 @@ end.time - start.time
 
 p_bh_50bptot <- data.frame(p.adjust(p, method = "BH")) #where p is vector of p-values
 p_bh_50bptot$gene <- hugo
-
+#Now make subset that is under FDR cutoff of 0.1
 p_bh_50bpfdr <- subset(p_bh_50bptot, p_bh_50bptot$p.adjust.p..method....BH.. <= 0.1)
 
 save(p_bh_50bpfdr, file = "fdr_50bp_nonsyn.RData")
