@@ -25,6 +25,13 @@ setwd("/Users/TinyDragon/Desktop/Data")
 pancan <- fread("pancan_unfiltered.maf")
 nsmAll <- select(pancan, colnames(pancan)) %>%
   filter(Variant_Classification == "Nonsense_Mutation")
+
+nsmAll <- select(pancan, colnames(pancan)) %>%
+  filter(Variant_Classification == "Nonsense_Mutation")
+
+nsmsilent <- select(pancan, colnames(pancan)) %>%
+  filter(Variant_Classification == "Silent")
+
 #Use read.maf from maftools package to prepare MAF class object
 nsm.maf <- read.maf(maf = nsmAll, useAll = TRUE)
 #saved maf to new file for later use
@@ -58,3 +65,7 @@ summary(nsm.sig$fract_muts_in_clusters) #Fraction of total mutations in clusters
 summary(nsm.sig$fdr) #FDR per gene Min 7.7e-06, Q1 0.55, Med 0.82, Mean 0.688, Q3 0.89, Max 0.966
 length(nsm.sig$fdr >= 0.05) ##3694 Genes had FDR >= 0.05
 
+
+oncoplot(maf = nsm.maf, top = 10, fontSize = 12)
+
+apc.lpop = lollipopPlot(maf = nsm.maf, gene = 'APC', AACol = 'Amino_Acid_Change', showMutationRate = TRUE, domainLabelSize = 3, defaultYaxis = FALSE)
