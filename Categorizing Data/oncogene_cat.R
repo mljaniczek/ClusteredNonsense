@@ -5,7 +5,7 @@ library(ggplot2)
 #This code attempts to categorize the data from the Chang et al paper(https://www.ncbi.nlm.nih.gov/pubmed/26619011) 
 #The data will first be filtered to include only nonsense and synonymous mutations, and indels will be excluded
 #The genes will then be categorized based on their role in cancer (tumor suppressor, oncogene, other)
-#The genes will be further subdivided based on their location on the gene (within 50bp from end of transcript or 50bp upstream of end of transcript)
+#The mutations will be further subdivided based on their location on the gene (within 50bp from end of transcript or 50bp upstream of end of transcript)
 
 ###I saved the output of the filtering and categorization steps into an RData file that can be loaded direclty
 
@@ -38,13 +38,20 @@ table(cosmicGenes$Role.in.Cancer)
 #a fusion event results in a protein product that is more activate
 ##Fusion events occur through translocations, which are mechanistically different from
 #point mutations. I can't decide whether to exclude genes that typically become
-#oncogenes or TSG through a fusion event... For now, I will just exclude those categorized as 
-#fusion, as TSG & oncogene, have no category, have three categories (oncogene, TST, fusion)
+#oncogenes or TSG through a fusion event... For now I will exclude those that have no
+#category, but I kept a code the excludes several other categories commented out
 
 cosmicGenes2 <- cosmicGenes %>% select(Gene.Symbol, Role.in.Cancer) %>%
-      filter(!Role.in.Cancer %in% c("", "fusion", "oncogene, TSG, fusion", "oncogene, TSG")) %>%
+      filter(Role.in.Cancer != "") %>%
+      #filter(!Role.in.Cancer %in% c("", "fusion", "oncogene, TSG, fusion", "oncogene, TSG")) %>%
       rename("Hugo_Symbol" = "Gene.Symbol") %>%
       mutate(Role.in.Cancer = as.vector(Role.in.Cancer))
+
+#Code that can be used to merge the TSG,fusion and TSG categories, and oncogene,fusion and oncogene categories
+#cosmicGenes2 <- cosmicGenes2 %>%
+    #mutate(Role.in.Cancer = replace(Role.in.Cancer, Role.in.Cancer == "TSG, fusion", "TSG")) %>%
+    #mutate(Role.in.Cancer = replace(Role.in.Cancer, Role.in.Cancer == "oncogene, fusion", "oncogene"))
+      
   
 #Categorizing genes in our data based on role in cancer. 
 #Added another column illustrating this  information 
