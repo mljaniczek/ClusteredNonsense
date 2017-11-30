@@ -78,16 +78,18 @@ load("NSM_syn_onco.RData") #Amr's subset of nonsense and synonymous mutations, e
 nsm.maf <- read.maf(maf = NSM_syn_onco, useAll = TRUE)
 #saved maf to new file for later use
 save(nsm.maf, file="pancan_nsm_new_readmaf.RData")
-
+load("pancan_nsm_new_readmaf.RData")
 #Run oncodrive function on maf object (took 20 minutes)
 #With bgEstimate = FALSE, indicate that function should use background mutation rate from COSMIC
-nsm.sig <- oncodrive(maf = tsg.maf, AACol = 'Amino_Acid_Change', 
+nsm.sig <- oncodrive(maf = nsm.maf, AACol = 'Amino_Acid_Change', 
                      minMut = 5, pvalMethod = 'zscore', bgEstimate = TRUE)
-nsm.sig.sel <- subset(tsg.sig, tsg.sig$muts_in_clusters >= 4)
+#estimated bg scores for synonymous variants mean 0.23138, estimated bg sd: 0.12427
+nsm.sig.sel <- subset(nsm.sig, nsm.sig$muts_in_clusters >= 5)
 saveRDS(nsm.sig.sel, file = "pancan_nsm_oncodrive_sig_sel.rds")
 load("pancan_nsm_oncodrive_sig_sel.rds")
-plotOncodrive(res = nsm.sig.sel, fdrCutOff = 0.1, useFraction = FALSE, labelSize = 3) 
+plotOncodrive(res = nsm.select, fdrCutOff = 0.01, useFraction = TRUE, labelSize = 3) 
 
+#Pulled code for plotOncodrive since I wanted to make some modifications
 res=nsm.sig.sel
 fdrCutOff = 0.1
 labelSize=3
@@ -101,9 +103,12 @@ tsgplot = ggplot(data = res, aes(x = fract_muts_in_clusters, y = -log10(fdr), si
 
 summary(nsm.sig.sel)
 
-nsm.select <- subset(nsm.sig.sel, nsm.sig.sel$fdr <= 0.1)
+#Read file containing census genes
+cosmicGenes <- read.csv("Census_allMon Nov 20 16_36_34 2017.csv")
+nsm.select <- subset(nsm.sig.sel, nsm.sig.sel$clusterScores > 0.6)
 cosmicSelect <- subset(cosmicGenes, cosmicGenes$Gene.Symbol %in% nsm.select$Hugo_Symbol)
 
+s<- cosmicSelect$Gene.Symbol
 
 tsg <- subset(NSM_syn_onco, NSM_syn_onco$Role.in.Cancer == "TSG") #163 genes, 4760 samples
 #Use read.maf from maftools package to prepare MAF class object
