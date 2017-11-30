@@ -1,17 +1,12 @@
 library(dplyr)
 library(data.table)
 library(ClusteredMutations)
+library(ggplot2)
 
 #install and load maftools
 source("https://bioconductor.org/biocLite.R")
 biocLite("maftools")
 library(maftools)
-
-#Oncodrive with example data from maftools package, if you want to test it
-laml.maf <- system.file("extdata", "tcga_laml.maf.gz", package = "maftools")
-laml <- read.maf(maf = laml.maf, useAll = FALSE)
-laml.sig <- oncodrive(maf = laml, AACol = 'Protein_Change', minMut = 5)
-plotOncodrive(res = laml.sig, fdrCutOff = 0.1)
 
 #oncodrive with our pancan data
 #Filter for nonsense mutations but keep all columns 
@@ -30,7 +25,7 @@ nsmAll <- select(pancan, colnames(pancan)) %>%
   filter(Variant_Classification == "Nonsense_Mutation")
 
 nsmsilent <- select(pancan, colnames(pancan)) %>%
-  filter(Variant_Classification == "Silent")
+  filter(Variant_Classification == "Silent") 
 
 #Use read.maf from maftools package to prepare MAF class object
 nsm.maf <- read.maf(maf = nsmAll, useAll = TRUE)
@@ -69,3 +64,161 @@ length(nsm.sig$fdr >= 0.05) ##3694 Genes had FDR >= 0.05
 oncoplot(maf = nsm.maf, top = 10, fontSize = 12)
 
 apc.lpop = lollipopPlot(maf = nsm.maf, gene = 'APC', AACol = 'Amino_Acid_Change', showMutationRate = TRUE, domainLabelSize = 3, defaultYaxis = FALSE)
+
+
+#######################################
+# Attempting with Amr's filtered data #
+#######################################
+
+setwd("/Users/TinyDragon/Desktop/Data")
+load("NSM_syn_onco.RData") #Amr's subset of nonsense and synonymous mutations, excluding indels, and categorized via Chang et al paper
+
+##Clustering using all gene types
+#Use read.maf from maftools package to prepare MAF class object
+nsm.maf <- read.maf(maf = NSM_syn_onco, useAll = TRUE)
+#saved maf to new file for later use
+save(nsm.maf, file="pancan_nsm_new_readmaf.RData")
+
+#Run oncodrive function on maf object (took 20 minutes)
+#With bgEstimate = FALSE, indicate that function should use background mutation rate from COSMIC
+nsm.sig <- oncodrive(maf = tsg.maf, AACol = 'Amino_Acid_Change', 
+                     minMut = 5, pvalMethod = 'zscore', bgEstimate = TRUE)
+nsm.sig.sel <- subset(tsg.sig, tsg.sig$muts_in_clusters >= 4)
+saveRDS(nsm.sig.sel, file = "pancan_nsm_oncodrive_sig_sel.rds")
+load("pancan_nsm_oncodrive_sig_sel.rds")
+plotOncodrive(res = nsm.sig.sel, fdrCutOff = 0.1, useFraction = FALSE, labelSize = 3) 
+
+res=nsm.sig.sel
+fdrCutOff = 0.1
+labelSize=3
+res$label = paste(res$Hugo_Symbol, '[',res$clusters,']', sep='')
+res$significant = ifelse(test = res$fdr < fdrCutOff, yes = 'sig', no = 'nonsig')
+colCode = c('sig' = 'red', 'nonsig' = 'royalblue')
+tsgplot = ggplot(data = res, aes(x = fract_muts_in_clusters, y = -log10(fdr), size = clusters, color = significant))+
+  geom_point(alpha = 0.9)+cowplot::theme_cowplot(line_size = 1)+theme(legend.position = 'NONE')+scale_color_manual(values = colCode)+
+  ggrepel::geom_text_repel(data = res[fdr < fdrCutOff], aes(x = fract_muts_in_clusters, y = -log10(fdr), label = label, size = labelSize), color = 'black')+
+  xlab('Fraction of mutations in clusters')+cowplot::background_grid(major = 'xy') + ggtitle('All Genes with Nonsense Mutation Clusters')
+
+summary(nsm.sig.sel)
+
+nsm.select <- subset(nsm.sig.sel, nsm.sig.sel$fdr <= 0.1)
+cosmicSelect <- subset(cosmicGenes, cosmicGenes$Gene.Symbol %in% nsm.select$Hugo_Symbol)
+
+
+tsg <- subset(NSM_syn_onco, NSM_syn_onco$Role.in.Cancer == "TSG") #163 genes, 4760 samples
+#Use read.maf from maftools package to prepare MAF class object
+tsg.maf <- read.maf(maf = tsg, useAll = TRUE)
+#saved maf to new file for later use
+save(tsg.maf, file="pancan_nsm_tsg_readmaf.RData")
+load("pancan_nsm_tsg_readmaf.RData")
+#Run oncodrive function on maf object (took 20 minutes)
+#With bgEstimate = FALSE, indicate that function should use background mutation rate from COSMIC
+tsg.sig <- oncodrive(maf = tsg.maf, AACol = 'Amino_Acid_Change', 
+                     minMut = 5, pvalMethod = 'zscore', bgEstimate = TRUE)
+tsg.sig.sel <- subset(tsg.sig, tsg.sig$muts_in_clusters >= 4)
+plotOncodrive(res = tsg.sig.sel, fdrCutOff = 0.1, useFraction = TRUE, labelSize = 3) 
+
+res=tsg.sig
+fdrCutOff = 0.1
+labelSize=3
+res$label = paste(res$Hugo_Symbol, '[',res$clusters,']', sep='')
+res$significant = ifelse(test = res$fdr < fdrCutOff, yes = 'sig', no = 'nonsig')
+colCode = c('sig' = 'red', 'nonsig' = 'royalblue')
+tsgplot = ggplot(data = res, aes(x = fract_muts_in_clusters, y = -log10(fdr), size = clusters, color = significant))+
+  geom_point(alpha = 0.9)+cowplot::theme_cowplot(line_size = 1)+theme(legend.position = 'NONE')+scale_color_manual(values = colCode)+
+  ggrepel::geom_text_repel(data = res[fdr < fdrCutOff], aes(x = fract_muts_in_clusters, y = -log10(fdr), label = label, size = labelSize), color = 'black')+
+  xlab('Fraction of mutations in clusters')+cowplot::background_grid(major = 'xy') + ggtitle('TSG Genes with Nonsense Mutation Clusters')
+
+## NOW on TSG Fustion genes
+tsg.fus <- subset(NSM_syn_onco, NSM_syn_onco$Role.in.Cancer == "TSG, fusion") #60 genes, 1894 samples
+#Use read.maf from maftools package to prepare MAF class object
+tsgfus.maf <- read.maf(maf = tsg.fus, useAll = TRUE)
+#Run oncodrive function on maf object
+#With bgEstimate = FALSE, indicate that function should use background mutation rate from COSMIC
+tsgfus.sig <- oncodrive(maf = tsgfus.maf, AACol = 'Amino_Acid_Change', 
+                     minMut = 5, pvalMethod = 'zscore', bgEstimate = TRUE)
+tsgfus.sig.sel <- subset(tsgfus.sig, tsgfus.sig$muts_in_clusters >=4)
+plotOncodrive(res = tsgfus.sig, fdrCutOff = 0.1, useFraction = TRUE, labelSize = 3)
+
+res=tsgfus.sig
+fdrCutOff = 0.1
+labelSize=3
+res$label = paste(res$Hugo_Symbol, '[',res$clusters,']', sep='')
+res$significant = ifelse(test = res$fdr < fdrCutOff, yes = 'sig', no = 'nonsig')
+colCode = c('sig' = 'red', 'nonsig' = 'royalblue')
+tsgfusplot = ggplot(data = res, aes(x = fract_muts_in_clusters, y = -log10(fdr), size = clusters, color = significant))+
+  geom_point(alpha = 0.9)+cowplot::theme_cowplot(line_size = 1)+theme(legend.position = 'NONE')+scale_color_manual(values = colCode)+
+  ggrepel::geom_text_repel(data = res[fdr < fdrCutOff], aes(x = fract_muts_in_clusters, y = -log10(fdr), label = label, size = labelSize), color = 'black')+
+  xlab('Fraction of mutations in clusters')+cowplot::background_grid(major = 'xy') + ggtitle('TSG Fusion Genes with Nonsense Mutation Clusters')
+
+
+## NOW on Oncogenes
+onco <- subset(NSM_syn_onco, NSM_syn_onco$Role.in.Cancer == "oncogene") #101 genes, 2989 samples
+#Use read.maf from maftools package to prepare MAF class object
+onco.maf <- read.maf(maf = onco, useAll = TRUE)
+#Run oncodrive function on maf object
+#With bgEstimate = FALSE, indicate that function should use background mutation rate from COSMIC
+onco.sig <- oncodrive(maf = onco.maf, AACol = 'Amino_Acid_Change', 
+                        minMut = 5, pvalMethod = 'zscore', bgEstimate = TRUE)
+onco.sig.sel <- subset(tsgfus.sig, tsgfus.sig$muts_in_clusters >=4)
+plotOncodrive(res = onco.sig, fdrCutOff = 0.1, useFraction = TRUE, labelSize = 3)
+
+res=onco.sig
+fdrCutOff = 0.1
+labelSize=3
+res$label = paste(res$Hugo_Symbol, '[',res$clusters,']', sep='')
+res$significant = ifelse(test = res$fdr < fdrCutOff, yes = 'sig', no = 'nonsig')
+colCode = c('sig' = 'red', 'nonsig' = 'royalblue')
+oncoplot = ggplot(data = res, aes(x = fract_muts_in_clusters, y = -log10(fdr), size = clusters, color = significant))+
+  geom_point(alpha = 0.9)+cowplot::theme_cowplot(line_size = 1)+theme(legend.position = 'NONE')+scale_color_manual(values = colCode)+
+  ggrepel::geom_text_repel(data = res[fdr < fdrCutOff], aes(x = fract_muts_in_clusters, y = -log10(fdr), label = label, size = labelSize), color = 'black')+
+  xlab('Fraction of mutations in clusters')+cowplot::background_grid(major = 'xy') + ggtitle('Oncogenes with Nonsense Mutation Clusters')
+
+## NOW on Oncogene fusion
+oncofus <- subset(NSM_syn_onco, NSM_syn_onco$Role.in.Cancer == "oncogene, fusion") #136 genes, 2602 samples
+#Use read.maf from maftools package to prepare MAF class object
+oncofus.maf <- read.maf(maf = oncofus, useAll = TRUE)
+#Run oncodrive function on maf object
+#With bgEstimate = FALSE, indicate that function should use background mutation rate from COSMIC
+oncofus.sig <- oncodrive(maf = oncofus.maf, AACol = 'Amino_Acid_Change', 
+                      minMut = 5, pvalMethod = 'zscore', bgEstimate = TRUE)
+oncofus.sig.sel <- subset(tsgfus.sig, tsgfus.sig$muts_in_clusters >=4)
+plotOncodrive(res = oncofus.sig, fdrCutOff = 0.1, useFraction = TRUE, labelSize = 3)
+
+res=oncofus.sig
+fdrCutOff = 0.1
+labelSize=3
+res$label = paste(res$Hugo_Symbol, '[',res$clusters,']', sep='')
+res$significant = ifelse(test = res$fdr < fdrCutOff, yes = 'sig', no = 'nonsig')
+colCode = c('sig' = 'red', 'nonsig' = 'royalblue')
+oncofusplot = ggplot(data = res, aes(x = fract_muts_in_clusters, y = -log10(fdr), size = clusters, color = significant))+
+  geom_point(alpha = 0.9)+cowplot::theme_cowplot(line_size = 1)+theme(legend.position = 'NONE')+scale_color_manual(values = colCode)+
+  ggrepel::geom_text_repel(data = res[fdr < fdrCutOff], aes(x = fract_muts_in_clusters, y = -log10(fdr), label = label, size = labelSize), color = 'black')+
+  xlab('Fraction of mutations in clusters')+cowplot::background_grid(major = 'xy') + ggtitle('Oncogenes, fusion with Nonsense Mutation Clusters')
+
+
+## NOW on Other gene
+other <- subset(NSM_syn_onco, NSM_syn_onco$Role.in.Cancer == "Other") #18795 genes, 10602 samples
+#Use read.maf from maftools package to prepare MAF class object
+other.maf <- read.maf(maf = other, useAll = TRUE)
+#Run oncodrive function on maf object
+#With bgEstimate = FALSE, indicate that function should use background mutation rate from COSMIC
+other.sig <- oncodrive(maf = other.maf, AACol = 'Amino_Acid_Change', 
+                         minMut = 5, pvalMethod = 'zscore', bgEstimate = TRUE)
+other.sig.sel <- subset(tsgfus.sig, tsgfus.sig$muts_in_clusters >=4)
+plotOncodrive(res = other.sig, fdrCutOff = 0.1, useFraction = TRUE, labelSize = 3)
+
+res=other.sig
+fdrCutOff = 0.1
+labelSize=3
+res$label = paste(res$Hugo_Symbol, '[',res$clusters,']', sep='')
+res$significant = ifelse(test = res$fdr < fdrCutOff, yes = 'sig', no = 'nonsig')
+colCode = c('sig' = 'red', 'nonsig' = 'royalblue')
+oncofusplot = ggplot(data = res, aes(x = fract_muts_in_clusters, y = -log10(fdr), size = clusters, color = significant))+
+  geom_point(alpha = 0.9)+cowplot::theme_cowplot(line_size = 1)+theme(legend.position = 'NONE')+scale_color_manual(values = colCode)+
+  ggrepel::geom_text_repel(data = res[fdr < fdrCutOff], aes(x = fract_muts_in_clusters, y = -log10(fdr), label = label, size = labelSize), color = 'black')+
+  xlab('Fraction of mutations in clusters')+cowplot::background_grid(major = 'xy') + ggtitle('"Other" genes with Nonsense Mutation Clusters')
+
+
+
+
