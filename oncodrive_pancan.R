@@ -31,27 +31,37 @@ nsm.sig15 <- oncodrive(maf = nsm.maf, AACol = 'Amino_Acid_Change',
 
 #Select results from oncodriveClust that have >=5 mutations in the clusters
 nsm.sig.sel <- subset(nsm.sig, nsm.sig$muts_in_clusters >= 5) 
+nsm.sig.sel15 <- subset(nsm.sig15, nsm.sig15$muts_in_clusters >= 5) 
 
 #Save result for later use
 saveRDS(nsm.sig.sel, file = "pancan_nsm_oncodrive_sig_sel.rds")
 load("pancan_nsm_oncodrive_sig_sel.rds") #load if necessary
 
 #basic plut function from MAF
-plotOncodrive(res = nsm.select, fdrCutOff = 0.01, useFraction = FALSE, labelSize = 3) 
+plotOncodrive(res = nsm.sig.sel15, fdrCutOff = 0.05, useFraction = TRUE, labelSize = 3) 
 
 #Subset oncodriveCLUST results further 
-nsm.select <- subset(nsm.sig.sel, nsm.sig.sel$clusterScores > 0.6)
+nsm.select <- subset(nsm.sig.sel, nsm.sig.sel$clusterScores > 0.5)
 nsm.select <- subset(nsm.sig.sel, nsm.sig.sel$fdr < 0.05)
+nsm.select15 <- subset(nsm.sig.sel15, nsm.sig.sel15$fdr < 0.05)
+save(nsm.select15, file="nsm.select15.RData")
 #Read file containing census genes, to classify
 cosmicGenes <- read.csv("Census_allMon Nov 20 16_36_34 2017.csv")
-
-cosmicSelect <- subset(cosmicGenes, cosmicGenes$Gene.Symbol %in% nsm.select$Hugo_Symbol)
+    
+cosmicSelect <- subset(cosmicGenes, cosmicGenes$Gene.Symbol %in% nsm.select15$Hugo_Symbol)
 
 s<- cosmicSelect$Gene.Symbol
 
+role <- c(rep("Other", 37))
+tsgind <- c(1, 5, 7, 8, 10, 15, 18, 19, 20, 26, 34, 36)
+role <- replace(role, tsgind, "TSG")
+role <- replace(role, 24, "Oncogene")
+
+nsm.select15$Role.in.cancer <- as.factor(role)
+
 #Pulled code for plotOncodrive since I wanted to make some modifications
-res=nsm.select
-fdrCutOff = 0.01
+res=nsm.select15
+fdrCutOff = 0.05
 labelSize=5
 res$label = paste(res$Hugo_Symbol, '[',res$clusters,']', sep='')
 res$significant = ifelse(test = res$fdr < fdrCutOff, yes = 'sig', no = 'nonsig')
@@ -59,7 +69,14 @@ colCode = c('sig' = 'red', 'nonsig' = 'royalblue')
 tsgplot = ggplot(data = res, aes(x = fract_muts_in_clusters, y = -log10(fdr), size = clusters, color = significant))+
   geom_point(alpha = 0.9)+cowplot::theme_cowplot(line_size = 1)+theme(legend.position = 'NONE')+scale_color_manual(values = colCode)+
   ggrepel::geom_text_repel(data = res[fdr < fdrCutOff], aes(x = fract_muts_in_clusters, y = -log10(fdr), label = label, size = labelSize), color = 'black')+
-  xlab('Fraction of mutations in clusters')+cowplot::background_grid(major = 'xy') + ggtitle('Genes with Nonsense Mutation Clusters')
+  xlab('Fraction of mutations in clusters')+cowplot::background_grid(major = 'xy') + ggtitle('Identification of genes containing nonsense mutation clusters')
+
+#Changing color to class of gene
+nsmplot = ggplot(data = res, aes(x = fract_muts_in_clusters, y = -log10(fdr), size = clusters, color = Role.in.cancer))+
+  geom_point(alpha = 0.9)+cowplot::theme_cowplot(line_size = 1)+#theme(legend.position = 'NONE')+#scale_color_manual(values = colCode)+
+  ggrepel::geom_text_repel(data = res[fdr < fdrCutOff], aes(x = fract_muts_in_clusters, y = -log10(fdr), label = label, size = labelSize), color = 'black')+
+  xlab('Fraction of mutations in clusters')+cowplot::background_grid(major = 'xy') + ggtitle('Identification of genes containing nonsense mutation clusters')
+
 
 summary(nsm.sig.sel)
 
@@ -67,8 +84,7 @@ summary(nsm.sig.sel)
 
 
 
-
-##Old cod
+##Old code
 ################################################################
 # Reading and filtering pancan data - you can just skip this   # 
 # and load prepared files below this section!!                 #
